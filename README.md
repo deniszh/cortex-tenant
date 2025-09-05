@@ -4,7 +4,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/blind-oracle/cortex-tenant/badge.svg?branch=main)](https://coveralls.io/github/blind-oracle/cortex-tenant?branch=main)
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/cortex-tenant)](https://artifacthub.io/packages/helm/cortex-tenant/cortex-tenant)
 
-Prometheus remote write proxy which marks timeseries with a Cortex/Mimir tenant ID based on labels.
+Prometheus/Loki remote write proxy which marks timeseries with a Cortex/Mimir/Loki tenant ID based on labels.
 
 ## Status
 
@@ -16,19 +16,20 @@ The project is stable and (hopefully) almost bug-free. I will accept PRs, but pr
 
 ## Overview
 
-Cortex/Mimir tenants (separate namespaces where metrics are stored to and queried from) are identified by `X-Scope-OrgID` HTTP header on both writes and queries.
+Cortex/Mimir/Loki tenants (separate namespaces where metrics are stored to and queried from) are identified by `X-Scope-OrgID` HTTP header on both writes and queries.
 
 ~~Problem is that Prometheus can't be configured to send this header~~ Actually in some recent version (year 2021 onwards) this functionality was added, but the tenant is the same for all jobs. This makes it impossible to use a single Prometheus (or an HA pair) to write to multiple tenants.
 
 This software solves the problem using the following logic:
 
-- Receive Prometheus remote write
-- Search each timeseries for a specific label name and extract a tenant ID from its value.
+- Receive Prometheus remote write or [Loki push](https://grafana.com/docs/loki/latest/reference/loki-http-api/#ingest-logs)
+- Search each timeseries/stream for a specific label name and extract a tenant ID from its value.
+  For Loki the stream labels are preferred over [structured metadata](https://grafana.com/docs/loki/latest/get-started/labels/structured-metadata/) labels.
   If the label wasn't found then it can fall back to a configurable default ID.
-  If none is configured then the write request will be rejected with HTTP code 400
-- Optionally removes this label from the timeseries
-- Groups timeseries by tenant
-- Issues a number of parallel per-tenant HTTP requests to Cortex/Mimir with the relevant tenant HTTP header (`X-Scope-OrgID` by default)
+  If none is configured then the write/push request will be rejected with HTTP code 400
+- Optionally removes this label from the timeseries/stream
+- Groups timeseries/streams by tenant
+- Issues a number of parallel per-tenant HTTP requests to Cortex/Mimir/Loki with the relevant tenant HTTP header (`X-Scope-OrgID` by default)
 
 ## Usage
 
@@ -38,6 +39,7 @@ This software solves the problem using the following logic:
 
 - GET `/alive` returns 200 by default and 503 if the service is shutting down (if `timeout_shutdown` setting is > 0)
 - POST `/push` receives metrics from Prometheus - configure remote write to send here
+- POST `/loki/push` receives logs from Loki - configure push to send here
 
 ### Configuration
 
@@ -58,6 +60,10 @@ listen_pprof: 0.0.0.0:7008
 # Where to send the modified requests (Cortex/Mimir)
 # env: CT_TARGET
 target: http://127.0.0.1:9091/receive
+
+# Where to send the modified requests (Loki)
+# env: CT_TARGET_LOKI
+target_loki: http://127.0.0.1:3100/loki/api/v1/push
 
 # Whether to enable querying for IPv6 records
 # env: CT_ENABLE_IPV6
@@ -137,10 +143,11 @@ tenant:
     - tenant
     - other_tenant
 
-  # Whether to remove the tenant label from the request
+  # Whether to remove the tenant label from the request.
+  # Has no effect for Loki stream messages, they are kept as is.
   # env: CT_TENANT_LABEL_REMOVE
   label_remove: true
-  
+
   # To which header to add the tenant ID
   # env: CT_TENANT_HEADER
   header: X-Scope-OrgID

@@ -23,6 +23,7 @@ const (
 listen_pprof: 0.0.0.0:7008
 
 target: http://127.0.0.1:9091/receive
+target_loki: http://127.0.0.1:3100/loki/api/v1/push
 log_level: debug
 timeout: 50ms
 timeout_shutdown: 100ms
@@ -41,6 +42,7 @@ tenant:
 listen_pprof: 0.0.0.0:7008
 
 target: http://127.0.0.1:9091/receive
+target_loki: http://127.0.0.1:3100/loki/api/v1/push
 log_level: debug
 timeout: 50ms
 timeout_shutdown: 100ms
@@ -244,13 +246,13 @@ func Test_handle(t *testing.T) {
 	err = p.run()
 	assert.Nil(t, err)
 
-	wrq1, err := p.marshal(testWRQ)
+	wrq1, err := p.marshalPromWrite(testWRQ)
 	assert.Nil(t, err)
 
-	wrq3, err := p.marshal(testWRQ3)
+	wrq3, err := p.marshalPromWrite(testWRQ3)
 	assert.Nil(t, err)
 
-	wrq4, err := p.marshal(testWRQ4)
+	wrq4, err := p.marshalPromWrite(testWRQ4)
 	assert.Nil(t, err)
 
 	s := &fh.Server{
@@ -401,21 +403,21 @@ func Test_processTimeseries(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func Test_marshal(t *testing.T) {
+func Test_marshalPromWrite(t *testing.T) {
 	p, err := createProcessor()
 	assert.Nil(t, err)
 
-	_, err = p.unmarshal([]byte{0xFF})
+	_, err = p.unmarshalPromWrite([]byte{0xFF})
 	assert.NotNil(t, err)
 
-	_, err = p.unmarshal(snappy.Encode(nil, []byte{0xFF}))
+	_, err = p.unmarshalPromWrite(snappy.Encode(nil, []byte{0xFF}))
 	assert.NotNil(t, err)
 
 	//buf := make([]byte, 1024)
-	buf, err := p.marshal(testWRQ)
+	buf, err := p.marshalPromWrite(testWRQ)
 	assert.Nil(t, err)
 
-	wrq, err := p.unmarshal(buf)
+	wrq, err := p.unmarshalPromWrite(buf)
 	assert.Nil(t, err)
 
 	assert.Equal(t, testTS1, wrq.Timeseries[0])
@@ -429,12 +431,23 @@ func Test_createWriteRequests(t *testing.T) {
 	m, err := p.createWriteRequests(testWRQ)
 	assert.Nil(t, err)
 
-	mExp := map[string]*prompb.WriteRequest{
-		"foobar": testWRQ1,
-		"foobaz": testWRQ2,
+	mExp := map[string]func() ([]byte, error){
+		"foobar": func() ([]byte, error) {
+			return p.marshalPromWrite(testWRQ1)
+		},
+		"foobaz": func() ([]byte, error) {
+			return p.marshalPromWrite(testWRQ2)
+		},
 	}
 
-	assert.Equal(t, mExp, m)
+	for k, v := range mExp {
+		v2, ok := m[k]
+		assert.True(t, ok)
+		vVal, vErr := v()
+		v2Val, v2Err := v2()
+		assert.Equal(t, vVal, v2Val)
+		assert.Equal(t, vErr, v2Err)
+	}
 }
 
 func Benchmark_marshal(b *testing.B) {
@@ -442,8 +455,8 @@ func Benchmark_marshal(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		buf, _ := p.marshal(testWRQ)
-		_, _ = p.unmarshal(buf)
+		buf, _ := p.marshalPromWrite(testWRQ)
+		_, _ = p.unmarshalPromWrite(buf)
 	}
 }
 
