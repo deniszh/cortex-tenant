@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/caarlos0/env/v8"
@@ -18,6 +19,7 @@ type config struct {
 	MetricsIncludeTenant bool   `yaml:"metrics_include_tenant" env:"CT_METRICS_INCLUDE_TENANT"`
 
 	Target     string `env:"CT_TARGET"`
+	TargetLoki string `yaml:"target_loki" env:"CT_TARGET_LOKI"`
 	EnableIPv6 bool   `yaml:"enable_ipv6" env:"CT_ENABLE_IPV6"`
 
 	LogLevel          string        `yaml:"log_level" env:"CT_LOG_LEVEL"`
@@ -86,6 +88,10 @@ func configLoad(file string) (*config, error) {
 		cfg.Target = "127.0.0.1:9090"
 	}
 
+	if cfg.TargetLoki == "" {
+		cfg.TargetLoki = "127.0.0.1:3100"
+	}
+
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 10 * time.Second
 	}
@@ -109,6 +115,9 @@ func configLoad(file string) (*config, error) {
 	// Default to the Label if list is empty
 	if len(cfg.Tenant.LabelList) == 0 {
 		cfg.Tenant.LabelList = append(cfg.Tenant.LabelList, cfg.Tenant.Label)
+	} else {
+		// Reverse entries to always prefer last label in list when found
+		slices.Reverse(cfg.Tenant.LabelList)
 	}
 
 	if cfg.Auth.Egress.Username != "" {
