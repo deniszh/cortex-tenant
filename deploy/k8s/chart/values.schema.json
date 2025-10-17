@@ -193,19 +193,19 @@
           "type": "string",
           "title": "Timeout",
           "description": "HTTP request timeout",
-          "format": "duration"
+          "pattern": "^[0-9]+[smhd]$"
         },
         "idle_timeout": {
           "type": "string",
           "title": "Idle_Timeout",
           "description": "HTTP request idle timeout",
-          "format": "duration"
+          "pattern": "^[0-9]+[smhd]$"
         },
         "timeout_shutdown": {
           "type": "string",
           "title": "Shutdown timeout",
           "description": "Timeout to wait on shutdown to allow load balancers detect that we're going away",
-          "format": "duration"
+          "pattern": "^[0-9]+[smhd]$"
         },
         "concurrency": {
           "type": "integer",
@@ -227,7 +227,7 @@
           "type": "string",
           "title": "Max Connection Duration",
           "description": "Maximum duration to keep outgoing connections alive (to Cortex/Mimir)",
-          "format": "duration"
+          "pattern": "^[0-9]+[smhd]$"
         },
         "max_conns_per_host": {
           "type": "integer",
@@ -497,7 +497,7 @@
           ],
           "title": "Interval",
           "description": "ServiceMonitor scrape interval",
-          "format": "duration"
+          "pattern": "^[0-9]+[smhd]$"
         },
         "scrapeTimeout": {
           "type": [
@@ -506,7 +506,7 @@
           ],
           "title": "Scrape Timeout",
           "description": "ServiceMonitor scrape timeout in Go duration format (e.g. 15s)",
-          "format": "duration"
+          "pattern": "^[0-9]+[smhd]$"
         },
         "relabelings": {
           "type": "array",
